@@ -7,6 +7,15 @@
 export type TokenLimitValue = number | string;
 
 /**
+ * Validated reasoning controls from models.dev catalog.
+ * - effort: discrete reasoningEffort values (subset of OpenCode vocabulary)
+ * - toggle: boolean enable_thinking switch (9Router-specific body field)
+ */
+export type ReasoningOption =
+  | { type: "effort"; values: string[] }
+  | { type: "toggle" };
+
+/**
  * Token limits OpenCode receives per model. OpenCode computes the context-usage
  * percentage shown in the UI from `context`; without it, usage always shows 0%.
  * Both fields are optional because a provider may only report one of them.
@@ -30,6 +39,10 @@ export type ModelConfig = {
   interleaved?: true | { field: "reasoning" | "reasoning_content" | "reasoning_details" };
   limit?: ModelLimits;
   variants?: Record<string, Record<string, unknown>>;
+  /** Thinking levels advertised by 9Router, e.g. ["none","low","medium","high"]. */
+  thinking_levels?: string[];
+  /** Validated catalog controls; lowered to V2 overlays, never provider settings. */
+  reasoning_options?: ReasoningOption[];
   search?: boolean;
   context_length?: number;
   max_completion_tokens?: number;
@@ -50,9 +63,18 @@ export interface RouterModelInfo {
     search?: boolean;
     contextWindow?: TokenLimitValue;
     maxOutput?: TokenLimitValue;
+    thinking_levels?: string[];
+    /** Raw reasoning options from 9Router per-model endpoint (if provided). */
+    reasoning_options?: unknown;
   };
   context_length?: TokenLimitValue;
   max_completion_tokens?: TokenLimitValue;
+  /** Thinking levels advertised by 9Router for reasoning-capable models. */
+  thinking_levels?: string[];
+  /** Provider identity from models.dev catalog for exact matching. */
+  catalogProvider?: string;
+  /** Raw reasoning options from 9Router per-model endpoint (top-level fallback). */
+  reasoning_options?: unknown;
 }
 
 /**
@@ -67,5 +89,9 @@ export interface ModelsDevEntry {
   capabilities?: RouterModelInfo["capabilities"];
   modalities?: { input?: string[]; output?: string[] };
   limit?: ModelLimits;
+  /** Validated reasoning controls from catalog (effort values and/or toggle). */
+  reasoning_options?: ReasoningOption[];
+  /** Provider identity as stored in models.dev (e.g., "openrouter", "zai", "google"). */
+  catalogProvider?: string;
   [key: string]: unknown;
 }

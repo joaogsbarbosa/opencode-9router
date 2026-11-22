@@ -60,8 +60,15 @@ The plugin will auto-discover models from `http://localhost:20128` (default).
 - **Configurable timeout** — Adjustable discovery timeout (default 30s) for slow backends
 - **Dynamic model list** — All models from 9Router are available, including custom combos
 - **Combo multimodal defaults** — Combo models (`owned_by: "combo"`) that expose no capability info are forced to accept text/image/audio input with tool calling, reasoning, 256K context, 128K output, and `low`/`medium`/`high`/`xhigh`/`max`/`minimal`/`thinking` variants
+- **Catalog thinking modes (V2)** — Reasoning variants from exact provider/model matches in models.dev, preserving configured overrides and combo variants
 - **OpenAI-compatible** — Uses `@ai-sdk/openai-compatible` (V1) / `@opencode/ai/providers/openai-compatible` (V2)
 - **Type-safe** — Uses the `config` hook (V1) / provider transforms (V2) for provider registration that conforms to the OpenCode config schema
+
+### Catalog thinking modes (V2)
+
+Raw models expose effort and toggle variants from models.dev `reasoning_options`. Efforts use `reasoningEffort`; toggles use 9Router's `enable_thinking` body field and clear inherited effort with `reasoningEffort: null` in variant settings so it cannot override the toggle. The adapter omits the cleared effort from the request. Native OpenCode configuration merges variants by ID: settings/body fields you supply win, while unspecified catalog fields remain; an empty configured variants array does not remove catalog variants. Unknown controls and numeric budgets are omitted. Leaving the variant unselected preserves upstream defaults. These controls remain subject to 9Router's downstream effort rewriting and toggle handling.
+
+`src/reasoning.ts` translates provider IDs using a subset of 9Router's [`PROVIDER_ALIASES`](https://github.com/decolua/9router/blob/89ffac5a2c8108449c432afd1ad6531578fa81cd/src/lib/modelCatalog/sync.js#L22-L40) at commit `89ffac5a2c8108449c432afd1ad6531578fa81cd` (`hunyuan` is omitted). The additional `gh` prefix comes from that revision's [GitHub provider registry](https://github.com/decolua/9router/blob/89ffac5a2c8108449c432afd1ad6531578fa81cd/open-sse/providers/registry/github.js#L1-L5). These aliases translate identities, not reasoning levels; controls still require an exact full model ID within the matched provider. Alias identity does not guarantee capability parity across authentication modes, notably Kimi's OAuth and API-key routes.
 
 ## OpenCode V2
 
@@ -428,6 +435,7 @@ opencode-9router/
     discovery.ts      # Model discovery pipeline
     capabilities.ts   # Capability resolution (catalog + per-model API)
     cache.ts          # Discovery + models.dev cache
+    reasoning.ts      # Catalog reasoning options (effort + toggle) from models.dev
     types.ts          # Shared types
     utils.ts          # Shared helpers
     constants.ts      # Models, defaults, prefixes

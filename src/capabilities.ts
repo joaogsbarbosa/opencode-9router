@@ -1,4 +1,4 @@
-import type { ModelConfig, ModelsDevEntry, RouterModelInfo } from "./types.js";
+import type { ModelConfig, ModelsDevEntry, RouterModelInfo, ReasoningOption } from "./types.js";
 import {
   COMBO_CONTEXT_WINDOW,
   COMBO_MAX_OUTPUT,
@@ -9,6 +9,7 @@ import {
   MODEL_INFO_TIMEOUT,
 } from "./constants.js";
 import { fetchModelsDevCatalog } from "./cache.js";
+import { findReasoningOptions } from "./reasoning.js";
 import { toPositiveInt } from "./utils.js";
 
 // ── Capability Resolution ──────────────────────────────────
@@ -108,6 +109,39 @@ export function mapRouterCapabilities(info: RouterModelInfo): Partial<ModelConfi
 
   if (inputModalities.size > 1) {
     config.modalities = { input: Array.from(inputModalities), output: ["text"] };
+  }
+
+  // 9Router /v1/models exposes per-model thinking levels, e.g.
+  // ["none","low","medium","high"]. Mirror them onto the config and emit a
+  // variant per level so OpenCode surfaces the reasoning-effort selector.
+  const thinkingLevels =
+    Array.isArray(info.thinking_levels) && info.thinking_levels.length > 0
+      ? info.thinking_levels
+      : Array.isArray(info.capabilities?.thinking_levels) &&
+          info.capabilities.thinking_levels.length > 0
+        ? info.capabilities.thinking_levels
+        : undefined;
+  if (thinkingLevels) {
+    config.thinking_levels = thinkingLevels;
+    config.variants = Object.fromEntries(
+      thinkingLevels.map((level) => [level, { reasoningEffort: level }]),
+    );
+  }
+
+  // reasoning_options from 9Router per-model endpoint (if provided)
+  // These are raw/validated controls that supplement or override bulk thinking_levels.
+  // May live nested under capabilities or at the top level depending on backend shape.
+  const rawReasoningOptions =
+    Array.isArray(info.capabilities?.reasoning_options) && info.capabilities.reasoning_options.length > 0
+      ? info.capabilities.reasoning_options
+      : Array.isArray(info.reasoning_options) && info.reasoning_options.length > 0
+        ? info.reasoning_options
+        : undefined;
+  if (rawReasoningOptions) {
+    config.reasoning_options = rawReasoningOptions as ReasoningOption[];
+    console.log("[capabilities] reasoning_options set for", info.id, "->", JSON.stringify(rawReasoningOptions));
+  } else {
+    console.log("[capabilities] no reasoning_options for", info.id, "keys:", Object.keys(info));
   }
 
   // Context window / max output limits. OpenCode's context-usage percentage
@@ -275,6 +309,19 @@ export async function resolveCapabilitiesBatch(
         capabilities[id] = mapRouterCapabilities(match);
         resolved = true;
       }
+      // Even if capabilities not fully resolved, extract reasoning_options from catalog
+      // as fallback for models where 9Router bulk doesn't provide thinking_levels
+      if (catalog && !resolved) {
+        const reasoningOptions = findReasoningOptions(id, catalog);
+        if (reasoningOptions) {
+          capabilities[id] = {
+            ...capabilities[id],
+            reasoning: true,
+            reasoning_options: reasoningOptions,
+          };
+          resolved = true;
+        }
+      }
     }
     if (!resolved) {
       pendingIds.push(id);
@@ -302,6 +349,8 @@ export async function resolveCapabilitiesBatch(
           continue;
         }
         capabilities[id] = mapRouterCapabilities(result.value);
+      } else if (result.status === "rejected") {
+        console.log(`[capabilities] per-model fetch rejected for ${batch[j]}: ${result.reason}`);
       }
     }
   }

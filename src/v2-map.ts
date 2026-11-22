@@ -1,5 +1,5 @@
 import { Model, Provider } from "@opencode/plugin";
-import type { ModelConfig } from "./types.js";
+import type { ModelConfig, ReasoningOption } from "./types.js";
 
 // ── V1 ModelConfig → V2 Model.Info Mapping ──────────────────
 
@@ -35,16 +35,47 @@ function mapOutputModalities(config: ModelConfig): string[] {
 
 /**
  * Map the V1 `variants` record (`{ low: { reasoningEffort: "low" } }`) into the
- * V2 array shape (`[{ id, settings }]`). Returns an empty array when absent.
+ * V2 array shape (`[{ id, settings }]`). Explicit variants win over catalog controls.
  */
 function mapVariants(config: ModelConfig): Model.Info["variants"] {
-  if (!config.variants) {
-    return [];
+  // 1. Explicit config.variants (from discovery or user config) — highest priority
+  if (config.variants !== undefined) {
+    return Object.entries(config.variants).map(([id, settings]) => ({
+      id: Model.VariantID.make(id),
+      settings: settings as Model.Settings,
+    }));
   }
-  return Object.entries(config.variants).map(([id, settings]) => ({
-    id: Model.VariantID.make(id),
-    settings: settings as Model.Settings,
-  }));
+
+  // 2. reasoning_options from catalog (effort + toggle) — fallback
+  const variants = new Map<string, Model.Info["variants"][number]>();
+
+  for (const option of config.reasoning_options ?? []) {
+    if (option.type === "effort") {
+      for (const effort of option.values) {
+        variants.set(String(effort), {
+          id: Model.VariantID.make(String(effort)),
+          settings: { reasoningEffort: effort },
+        });
+      }
+    } else if (option.type === "toggle") {
+      // Toggle variants: clear inherited effort so 9Router honors the toggle
+      for (const [id, enabled] of [
+        ["none", false],
+        ["thinking", true],
+      ] as const) {
+        if (!variants.has(id)) {
+          variants.set(id, {
+            id: Model.VariantID.make(id),
+            settings: { reasoningEffort: null },
+            body: { enable_thinking: enabled },
+          });
+        }
+      }
+    }
+  }
+
+  // Effort advertised wins a same-ID toggle collision (in either catalog order)
+  return [...variants.values()];
 }
 
 /**

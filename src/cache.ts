@@ -179,17 +179,19 @@ export async function fetchModelsDevCatalog(): Promise<ModelsDevEntry[] | null> 
 
 /**
  * models.dev/api.json returns a dict of providers, each with a nested
- * models dict. Flatten into a list of { id, capabilities } entries.
+ * models dict. Flatten into a list of entries preserving catalogProvider
+ * for exact matching in reasoning control lookup.
  */
 export function flattenModelsDevCatalog(
   raw: Record<string, { models?: Record<string, ModelsDevEntry> }>,
 ): ModelsDevEntry[] {
   const result: ModelsDevEntry[] = [];
-  for (const provider of Object.values(raw)) {
+  for (const [catalogProvider, provider] of Object.entries(raw)) {
     if (!provider?.models) continue;
     for (const entry of Object.values(provider.models)) {
       if (entry?.id) {
-        result.push(entry);
+        // Preserve provider identity for exact matching; avoid mutating cached input
+        result.push({ ...entry, catalogProvider });
       }
     }
   }

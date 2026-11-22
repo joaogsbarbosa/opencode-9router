@@ -102,8 +102,10 @@ export const COMBO_REASONING_EFFORTS = [
 /**
  * Discovery cache format version. Bumped whenever the stored model config
  * shape changes so stale entries are refetched instead of served as-is.
+ * v5: adds reasoning_options (effort + toggle) and catalogProvider to ModelConfig.
+ * Rejects v3 and v4 caches to ensure validated controls are present.
  */
-export const DISCOVERY_CACHE_VERSION = 3;
+export const DISCOVERY_CACHE_VERSION = 5;
 
 /** Known provider prefixes in 9Router model IDs for human-readable naming. */
 export const KNOWN_PROVIDER_PREFIXES: Record<string, string> = {

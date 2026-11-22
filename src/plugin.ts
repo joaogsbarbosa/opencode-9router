@@ -77,7 +77,13 @@ export const NineRouterPlugin: Plugin = async ({ client }: PluginInput) => {
           entry.name ??= key;
           entry.api = apiURL;
           entry.options = { ...(entry.options as Record<string, unknown>), baseURL: apiURL };
-          entry.models = discovered ?? {};
+          // Catalog controls are V2 overlays, not legacy model configuration keys.
+          entry.models = Object.fromEntries(
+            Object.entries(discovered ?? {}).map(([id, model]) => {
+              const { reasoning_options, ...legacy } = model as Record<string, unknown>;
+              return [id, legacy];
+            }),
+          );
 
           return { key, discovered, apiURL };
         }),

@@ -3,6 +3,8 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { mergeProviderOptions as mergeOverlay } from "@opencode/ai";
 
 const packageJson = JSON.parse(await readFile(new URL("./package.json", import.meta.url), "utf8"));
 const require = createRequire(import.meta.url);
@@ -21,7 +23,7 @@ assert.equal(packageEntry.default.id, "9router");
 assert.equal(typeof packageEntry.default.setup, "function");
 assert.equal(typeof packageEntry.default.server, "function");
 
-assert.equal(require.resolve("@vheins/opencode-9router/server"), new URL("./dist/index.js", import.meta.url).pathname);
+assert.equal(require.resolve("@vheins/opencode-9router/server"), fileURLToPath(new URL("./dist/index.js", import.meta.url)));
 
 console.log("V2 entrypoint and package export checks passed");
 
@@ -36,6 +38,7 @@ const { nineRouterV2 } = await import("./dist/v2.js");
 const providerRecords = new Map();
 const providerTransforms = [];
 const modelTransforms = [];
+let candidates = new Map();
 
 const providerEditor = {
   list: () => Array.from(providerRecords.values()),
@@ -43,7 +46,7 @@ const providerEditor = {
   add: ({ info, models }) => {
     providerRecords.set(info.id, {
       provider: info,
-      models: new Map(models.map((model) => [model.id, model])),
+      models: new Map(models.map((model) => [model.id, structuredClone(model)])),
     });
   },
   update: (id, update) => {
@@ -59,7 +62,7 @@ const providerEditor = {
     set: (id, models) => {
       const record = providerRecords.get(id);
       if (record) {
-        record.models = new Map(models.map((model) => [model.id, model]));
+        record.models = new Map(models.map((model) => [model.id, structuredClone(model)]));
       }
     },
     update: (id, modelID, update) => {
@@ -77,14 +80,14 @@ const providerEditor = {
 
 const modelEditor = {
   list: (providerID) =>
-    Array.from(providerRecords.values()).flatMap((record) =>
+    Array.from(candidates.values()).flatMap((record) =>
       providerID && record.provider.id !== providerID
         ? []
         : Array.from(record.models.values()),
     ),
-  get: (providerID, modelID) => providerRecords.get(providerID)?.models.get(modelID),
+  get: (providerID, modelID) => candidates.get(providerID)?.models.get(modelID),
   update: (providerID, modelID, update) => {
-    const record = providerRecords.get(providerID);
+    const record = candidates.get(providerID);
     if (!record) {
       return;
     }
@@ -105,7 +108,7 @@ const modelEditor = {
     update(model);
   },
   remove: (providerID, modelID) => {
-    providerRecords.get(providerID)?.models.delete(modelID);
+    candidates.get(providerID)?.models.delete(modelID);
   },
   default: {
     get: () => undefined,
@@ -118,8 +121,24 @@ const modelEditor = {
 };
 
 const replayModelTransforms = () => {
-  for (const transform of modelTransforms) {
-    transform(modelEditor);
+  candidates = structuredClone(providerRecords);
+  for (const transform of modelTransforms) transform(modelEditor);
+  const configured = candidates.get("9router-inferhub")?.models.get("vendor/model-a");
+  if (configured) {
+    configured.settings = mergeOverlay(configured.settings, { custom: true });
+    configured.body = mergeOverlay(configured.body, { custom_body: true });
+    const configuredVariants = [
+      { id: "high", settings: { reasoningEffort: "low" }, body: { custom_variant: true } },
+      { id: "thinking", settings: { reasoningEffort: "high" } },
+      { id: "custom", settings: { custom: true } },
+    ];
+    for (const variant of configuredVariants) {
+      let existing = configured.variants.find((item) => item.id === variant.id);
+      if (!existing) configured.variants.push(existing = { id: variant.id });
+      for (const key of ["settings", "body"]) {
+        if (variant[key] !== undefined) existing[key] = mergeOverlay(existing[key], variant[key]);
+      }
+    }
   }
 };
 const replayProviderTransforms = () => {
@@ -130,6 +149,16 @@ const replayProviderTransforms = () => {
 };
 
 const eventSubscribers = [];
+let refreshEvent;
+let effortValues = ["low", "high"];
+let reloadAttempts = 0;
+let reloadFailures = 0;
+let refreshFailures = 0;
+const originalError = console.error;
+console.error = (...args) => {
+  if (args.some((arg) => String(arg).includes("Refresh failed: synthetic reload failure"))) refreshFailures++;
+  else originalError(...args);
+};
 const context = {
   options: { cache: false },
   provider: {
@@ -140,6 +169,11 @@ const context = {
       return { dispose: () => undefined };
     },
     reload: async () => {
+      reloadAttempts++;
+      if (reloadFailures > 0) {
+        reloadFailures--;
+        throw new Error("synthetic reload failure");
+      }
       replayProviderTransforms();
     },
   },
@@ -156,9 +190,14 @@ const context = {
   event: {
     subscribe: ({ signal } = {}) => ({
       async *[Symbol.asyncIterator]() {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        if (!signal?.aborted) {
-          yield { type: "provider.updated" };
+        while (!signal?.aborted) {
+          const event = await new Promise((resolve) => {
+            refreshEvent = resolve;
+            signal?.addEventListener("abort", () => resolve(undefined), { once: true });
+          });
+          refreshEvent = undefined;
+          if (!event) return;
+          yield event;
         }
       },
     }),
@@ -222,6 +261,13 @@ try {
     2,
     "late config provider should receive discovered models",
   );
+
+  // Simulate a failed reload followed by recovery.
+  reloadFailures = 1;
+  await context.provider.reload();
+  assert.equal(reloadAttempts, 2, "reload retried after synthetic failure");
+  assert.equal(refreshFailures, 1, "refresh failure logged");
+
   await cleanup();
   console.log("V2 late config-provider lifecycle checks passed");
 } finally {

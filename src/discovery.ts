@@ -1,7 +1,52 @@
-import type { ModelConfig } from "./types.js";
+import type { ModelConfig, ReasoningOption } from "./types.js";
 import { readDiscoveryCache, readStaleDiscoveryCache, writeDiscoveryCache } from "./cache.js";
 import { forceComboConfig, isComboModel, resolveCapabilitiesBatch } from "./capabilities.js";
 import { ensureAPIPath, formatModelName } from "./utils.js";
+
+/**
+ * Build reasoning variants from thinking_levels (9Router bulk) and/or
+ * reasoning_options (models.dev catalog / per-model info).
+ *
+ * Both sources can coexist:
+ * - thinking_levels provides effort variants (e.g. none/low/medium/high)
+ * - reasoning_options adds effort variants (dedup) and/or toggle variants
+ *   (none/thinking with body.enable_thinking).
+ *
+ * Effort from thinking_levels wins a same-ID toggle collision.
+ * All values are passed through as-is; no vocabulary filtering is applied.
+ */
+function buildReasoningVariants(config: ModelConfig): Record<string, Record<string, unknown>> | undefined {
+  const variants: Record<string, Record<string, unknown>> = {};
+
+  // Effort from thinking_levels (9Router bulk /models response)
+  if (Array.isArray(config.thinking_levels) && config.thinking_levels.length > 0) {
+    for (const level of config.thinking_levels) {
+      variants[String(level)] = { reasoningEffort: level };
+    }
+  }
+
+  // Effort + toggle from reasoning_options (models.dev catalog / per-model info)
+  if (Array.isArray(config.reasoning_options) && config.reasoning_options.length > 0) {
+    for (const option of config.reasoning_options) {
+      if (option.type === "effort") {
+        for (const effort of option.values) {
+          if (!variants[String(effort)]) {
+            variants[String(effort)] = { reasoningEffort: effort };
+          }
+        }
+      } else if (option.type === "toggle") {
+        if (!variants.none) {
+          variants.none = { reasoningEffort: null, body: { enable_thinking: false } };
+        }
+        if (!variants.thinking) {
+          variants.thinking = { reasoningEffort: null, body: { enable_thinking: true } };
+        }
+      }
+    }
+  }
+
+  return Object.keys(variants).length > 0 ? variants : undefined;
+}
 
 // ── Model Discovery ─────────────────────────────────────────
 
@@ -52,7 +97,7 @@ export async function discoverModels(
     log("info", `[discovery] Fetch OK (${response.status}) for ${baseURL}`);
 
     const data = (await response.json()) as {
-      data?: Array<{ id: string; owned_by?: string }>;
+      data?: Array<{ id: string; owned_by?: string; thinking_levels?: string[] }>;
     };
     if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
       throw new Error(`Empty or invalid response data from ${apiURL}/models`);
@@ -63,6 +108,12 @@ export async function discoverModels(
     const comboIds = new Set<string>();
     for (const model of data.data) {
       models[model.id] = { name: formatModelName(model.id) };
+      // Preserve the per-model thinking levels advertised by the 9Router
+      // /v1/models response (e.g. ["none","low","medium","high"]) so the
+      // reasoning-effort variants survive catalog enrichment.
+      if (Array.isArray(model.thinking_levels) && model.thinking_levels.length > 0) {
+        models[model.id].thinking_levels = model.thinking_levels;
+      }
       modelIds.push(model.id);
       if (isComboModel(model.id, model.owned_by)) {
         comboIds.add(model.id);
@@ -74,6 +125,16 @@ export async function discoverModels(
     for (const [id, caps] of Object.entries(capabilities)) {
       if (models[id]) {
         Object.assign(models[id], caps);
+      }
+    }
+
+    // Generate reasoning variants from thinking_levels (9Router bulk) and/or
+    // reasoning_options (models.dev catalog / per-model info). Both sources can
+    // coexist: thinking_levels provides effort variants, reasoning_options adds
+    // effort (dedup) and/or toggle (enable_thinking) variants.
+    for (const config of Object.values(models)) {
+      if (!config.variants) {
+        config.variants = buildReasoningVariants(config);
       }
     }
 
