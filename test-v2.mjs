@@ -262,9 +262,15 @@ try {
     "late config provider should receive discovered models",
   );
 
-  // Simulate a failed reload followed by recovery.
+  // Simulate a failed publication followed by automatic recovery.
+  providerRecords.get("9router-inferhub").provider.name = "Inferhub Retry";
+  reloadAttempts = 0;
   reloadFailures = 1;
-  await context.provider.reload();
+  refreshEvent?.({ type: "provider.updated" });
+  const retryDeadline = Date.now() + 5000;
+  while (Date.now() < retryDeadline && reloadAttempts < 2) {
+    await delay(20);
+  }
   assert.equal(reloadAttempts, 2, "reload retried after synthetic failure");
   assert.equal(refreshFailures, 1, "refresh failure logged");
 

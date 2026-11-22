@@ -22,6 +22,12 @@ export const REFRESH_INTERVAL = 5 * 60 * 1000;
 /** Bounded retries for config providers registered after external plugin setup. */
 export const CONFIG_PROVIDER_RETRY_DELAYS = [0, 100, 500, 1500, 5000] as const;
 
+/** Delay before retrying a refresh whose provider publication failed. */
+export const REFRESH_RETRY_DELAY = 1000;
+
+/** Consecutive publication retries allowed before waiting for an external trigger. */
+export const MAX_REFRESH_RETRIES = 1;
+
 /** Minimal view of a listed provider record (unbranded ids from the client). */
 interface ExistingProvider {
   id: string;
@@ -215,6 +221,8 @@ export const nineRouterV2: Plugin.Plugin = Plugin.define({
     let refreshRunning = false;
     let refreshPending = false;
     let refreshTask: Promise<void> | undefined;
+    let refreshRetryTimer: ReturnType<typeof setTimeout> | undefined;
+    let refreshRetriesLeft = MAX_REFRESH_RETRIES;
     /** Discover and map models for the given resolved targets. */
     const discoverTargets = async (
       resolvedTargets: readonly ProviderTarget[],
@@ -310,10 +318,21 @@ export const nineRouterV2: Plugin.Plugin = Plugin.define({
           while (refreshPending && !disposed) {
             refreshPending = false;
             await refresh();
+            refreshRetriesLeft = MAX_REFRESH_RETRIES;
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           await log("error", `[9router-provider] Refresh failed: ${message}`);
+          // A failed publication leaves the previous inventory live. Retry once
+          // after a short delay instead of waiting for the 5 minute interval.
+          if (!disposed && refreshRetriesLeft > 0 && !refreshRetryTimer) {
+            refreshRetriesLeft--;
+            refreshRetryTimer = setTimeout(() => {
+              refreshRetryTimer = undefined;
+              scheduleRefresh();
+            }, REFRESH_RETRY_DELAY);
+            if (typeof refreshRetryTimer === "object") refreshRetryTimer.unref();
+          }
         }
       })().finally(() => {
         refreshRunning = false;
@@ -374,6 +393,10 @@ export const nineRouterV2: Plugin.Plugin = Plugin.define({
       disposed = true;
       for (const retryTimer of retryTimers) {
         clearTimeout(retryTimer);
+      }
+      if (refreshRetryTimer) {
+        clearTimeout(refreshRetryTimer);
+        refreshRetryTimer = undefined;
       }
       clearInterval(timer);
       eventAbort.abort();
