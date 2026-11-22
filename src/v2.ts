@@ -319,6 +319,10 @@ export const nineRouterV2: Plugin.Plugin = Plugin.define({
             refreshPending = false;
             await refresh();
             refreshRetriesLeft = MAX_REFRESH_RETRIES;
+            if (refreshRetryTimer) {
+              clearTimeout(refreshRetryTimer);
+              refreshRetryTimer = undefined;
+            }
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
