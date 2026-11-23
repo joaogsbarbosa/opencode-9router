@@ -31,8 +31,12 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "opencode-9router": "./bin/opencode-9router.js"
+  },
   "files": [
     "dist",
+    "bin",
     "server.js",
     "README.md",
     "README.id.md",
