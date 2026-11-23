@@ -18,6 +18,8 @@ import path from "node:path";
 
 const PACKAGE = "@joaogsbarbosa/opencode-9router@latest";
 const DEFAULT_BASE_URL = "http://localhost:20128";
+const DEFAULT_CACHE_TTL = 3 * 60 * 60 * 1000; // 3 h (default do plugin)
+const DEFAULT_DISCOVERY_TIMEOUT = 30000;
 const SCHEMA = "https://opencode.ai/config.json";
 
 const argv = process.argv.slice(2);
@@ -56,6 +58,12 @@ async function askYesNo(label, defaultYes = true) {
   const answer = raw.trim().toLowerCase();
   if (!answer) return defaultYes;
   return !answer.startsWith("n");
+}
+
+async function askPositiveInt(label, defaultValue) {
+  const raw = await askValue(label, String(defaultValue));
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : defaultValue;
 }
 
 function resolveConfigPath() {
@@ -304,23 +312,27 @@ function matches(spec, pkg = PACKAGE) {
   return /opencode-9router/i.test(spec) || spec === pkg;
 }
 
-function buildOptions(url, apikey, cache) {
+function buildOptions(url, apikey, cache, cacheTTL, discoveryTimeout) {
   const options = {};
   if (url) options.baseURL = url;
   if (apikey) options.apiKey = apikey;
   if (cache) options.cache = cache === "true";
+  const ttl = Number(cacheTTL);
+  if (Number.isFinite(ttl) && ttl > 0) options.cacheTTL = ttl;
+  const timeout = Number(discoveryTimeout);
+  if (Number.isFinite(timeout) && timeout > 0) options.discoveryTimeout = timeout;
   return options;
 }
 
-function computePlugins(config, action, pkg, url, apikey, cache) {
+function computePlugins(config, action, pkg, url, apikey, cache, cacheTTL, discoveryTimeout) {
   const plugins = Array.isArray(config.plugins) ? config.plugins.slice() : [];
   if (action === "set") {
     const kept = plugins.filter((entry) => !matches(entryPackage(entry), pkg));
-    kept.push({ package: pkg, options: buildOptions(url, apikey, cache) });
+    kept.push({ package: pkg, options: buildOptions(url, apikey, cache, cacheTTL, discoveryTimeout) });
     return kept;
   }
   if (action === "configure") {
-    const options = buildOptions(url, apikey, cache);
+    const options = buildOptions(url, apikey, cache, cacheTTL, discoveryTimeout);
     const index = plugins.findIndex((entry) => matches(entryPackage(entry), pkg));
     if (index === -1) {
       plugins.push({ package: pkg, options });
@@ -407,10 +419,10 @@ function writeConfig(cfgPath, text) {
   writeFileSync(cfgPath, text.endsWith("\n") ? text : text + "\n");
 }
 
-function applyAction(cfgPath, action, pkg, url, apikey, cache) {
+function applyAction(cfgPath, action, pkg, url, apikey, cache, cacheTTL, discoveryTimeout) {
   const { text, config, exists } = readConfig(cfgPath);
   const before = Array.isArray(config.plugins) ? config.plugins.length : 0;
-  const plugins = computePlugins(config, action, pkg, url, apikey, cache);
+  const plugins = computePlugins(config, action, pkg, url, apikey, cache, cacheTTL, discoveryTimeout);
   if (action === "remove" && (!exists || plugins.length === before)) return 0;
   writeConfig(cfgPath, buildConfigText(text, plugins));
   return action === "remove" ? before - plugins.length : 0;
@@ -439,11 +451,13 @@ async function checkConnection(baseUrl, apiKey) {
   }
 }
 
-async function promptOptions(cfgPath, defaultUrl, defaultKey, defaultCache) {
+async function promptOptions(cfgPath, defaultUrl, defaultKey, defaultCache, defaultCacheTTL, defaultDiscoveryTimeout) {
   const url = await askValue("Base URL", defaultUrl || DEFAULT_BASE_URL);
   const key = await askValue("API key (optional)", defaultKey || "");
   const cache = await askYesNo("Enable cache?", (defaultCache || "Y") === "Y");
-  return { url, key, cache: cache ? "true" : "false" };
+  const cacheTTL = await askPositiveInt("Cache TTL (ms)", defaultCacheTTL || DEFAULT_CACHE_TTL);
+  const discoveryTimeout = await askPositiveInt("Discovery timeout (ms)", defaultDiscoveryTimeout || DEFAULT_DISCOVERY_TIMEOUT);
+  return { url, key, cache: cache ? "true" : "false", cacheTTL, discoveryTimeout };
 }
 
 async function requireConnection(options) {
@@ -453,25 +467,39 @@ async function requireConnection(options) {
 }
 
 async function doInstall(cfgPath) {
-  const options = await promptOptions(cfgPath, "", "", "Y");
+  const options = await promptOptions(cfgPath, "", "", "Y", DEFAULT_CACHE_TTL, DEFAULT_DISCOVERY_TIMEOUT);
   await requireConnection(options);
-  applyAction(cfgPath, "set", PACKAGE, options.url, options.key, options.cache);
+  applyAction(cfgPath, "set", PACKAGE, options.url, options.key, options.cache, options.cacheTTL, options.discoveryTimeout);
   console.log(`\nPlugin configured: ${PACKAGE}`);
   console.log(`Config: ${cfgPath}`);
   console.log("OpenCode installs the package automatically. Restart (or /reload).");
 }
 
 async function doUpdate(cfgPath) {
-  const options = await promptOptions(cfgPath, getOptionValue(cfgPath, "baseURL"), getOptionValue(cfgPath, "apiKey"), getOptionValue(cfgPath, "cache") === "false" ? "N" : "Y");
+  const options = await promptOptions(
+    cfgPath,
+    getOptionValue(cfgPath, "baseURL"),
+    getOptionValue(cfgPath, "apiKey"),
+    getOptionValue(cfgPath, "cache") === "false" ? "N" : "Y",
+    Number(getOptionValue(cfgPath, "cacheTTL")) || DEFAULT_CACHE_TTL,
+    Number(getOptionValue(cfgPath, "discoveryTimeout")) || DEFAULT_DISCOVERY_TIMEOUT
+  );
   await requireConnection(options);
-  applyAction(cfgPath, "set", PACKAGE, options.url, options.key, options.cache);
+  applyAction(cfgPath, "set", PACKAGE, options.url, options.key, options.cache, options.cacheTTL, options.discoveryTimeout);
   console.log("\nConfiguration updated. Restart OpenCode (or /reload).");
 }
 
 async function doConfigure(cfgPath) {
-  const options = await promptOptions(cfgPath, getOptionValue(cfgPath, "baseURL"), getOptionValue(cfgPath, "apiKey"), getOptionValue(cfgPath, "cache") === "false" ? "N" : "Y");
+  const options = await promptOptions(
+    cfgPath,
+    getOptionValue(cfgPath, "baseURL"),
+    getOptionValue(cfgPath, "apiKey"),
+    getOptionValue(cfgPath, "cache") === "false" ? "N" : "Y",
+    Number(getOptionValue(cfgPath, "cacheTTL")) || DEFAULT_CACHE_TTL,
+    Number(getOptionValue(cfgPath, "discoveryTimeout")) || DEFAULT_DISCOVERY_TIMEOUT
+  );
   await requireConnection(options);
-  applyAction(cfgPath, "configure", PACKAGE, options.url, options.key, options.cache);
+  applyAction(cfgPath, "configure", PACKAGE, options.url, options.key, options.cache, options.cacheTTL, options.discoveryTimeout);
   console.log(`\nOptions updated in ${cfgPath}. Restart OpenCode (or /reload).`);
 }
 

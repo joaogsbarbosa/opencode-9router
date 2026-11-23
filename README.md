@@ -205,16 +205,16 @@ uses `./opencode.jsonc` by default, or an existing `./opencode.json` or
 `.opencode/opencode.json(c)`.
 
 **Prompts:** base URL (default `http://localhost:20128`), API key (optional),
-cache (default `Y`). `update` and `configure` reuse the current values as
-defaults. The connection (`{baseURL}/v1/models`) is verified before installing,
-updating, or configuring.
+cache (default `Y`), cache TTL in ms (default `10800000`, 3 h), discovery
+timeout in ms (default `30000`). `update` and `configure` reuse the current
+values as defaults. The connection (`{baseURL}/v1/models`) is verified before
+installing, updating, or configuring.
 
 **Commands:**
 
 - `install` replaces any existing `opencode-9router` entry with the npm package.
-- `update` re-applies the entry, dropping options that are not prompted again.
-- `configure` merges the prompted options into the existing entry, keeping other
-  options such as `cacheTTL` and `discoveryTimeout`.
+- `update` re-applies the entry with the prompted options.
+- `configure` merges the prompted options into the existing entry.
 - `uninstall` removes matching entries and the plugin cache.
 - `list` shows configured plugins; `path` prints the config file in use.
 
@@ -223,7 +223,13 @@ updating, or configuring.
 ```json
 {
   "package": "@joaogsbarbosa/opencode-9router@latest",
-  "options": { "baseURL": "...", "apiKey": "...", "cache": true }
+  "options": {
+    "baseURL": "...",
+    "apiKey": "...",
+    "cache": true,
+    "cacheTTL": 10800000,
+    "discoveryTimeout": 30000
+  }
 }
 ```
 
@@ -402,52 +408,6 @@ Provider appears in /models
 
 Cache files are stored at `~/.cache/opencode-9router/discovery-{base64url}.json`, one per unique `baseURL`. The cache directory also stores the models.dev capability catalog (`models-dev.json`).
 
-## Changelog
-
-### v0.9.1 — V2 model registration for configured providers
-- Fix V2 plugin setup ordering: external plugins run before OpenCode's internal config-provider plugin, so config-defined `9router*` providers are not visible during setup
-- Register a model transform (`ctx.model.transform`) that injects the discovered inventory into providers once they become available
-- Refresh targets after setup with bounded retries and `provider.updated` events, then `ctx.model.reload()`
-- Add a root `server.js` entrypoint and `./server` package export so an absolute local plugin path resolves
-- Add `test-v2.mjs` covering the package entrypoint and the late config-provider lifecycle
-
-### v0.9.0 — OpenCode V2 support (dual V1 + V2)
-- Add a V2 plugin (`src/v2.ts`) built with `Plugin.define({ id: "9router", setup })`, registering providers/models through `ctx.provider.transform(...)` and refreshing via `ctx.provider.reload()`
-- Add `src/v2-map.ts` mapping the discovered `ModelConfig` onto V2 `Model.Info` (capabilities, required `limit.context`/`limit.output`, variants)
-- Add `src/index.ts` dual entrypoint: default export merges the V2 definition with `server: NineRouterPlugin` (V1 1.18.29+); named `NineRouterPlugin` export retained for older V1
-- Package entry (`exports`, `main`, `types`) now points at `dist/index.js` / `dist/index.d.ts`
-- `@opencode/plugin@^2.0.12` added as a runtime dependency; `@opencode-ai/plugin` / `@opencode-ai/sdk` kept for V1 types
-- V1 behavior unchanged; discovery/capability/cache algorithms untouched
-
-### v0.8.1 — Strict combo enrichment
-- Combos count as enriched only on an **exact** models.dev segment match (no more loose substring hits like `vision` → `gpt-4-turbo-vision`)
-- Ignore bare `/models/info` capability stubs (`{tools: true}`) for combos, so backends that return stubs still get forced multimodal defaults
-
-### v0.8.0 — Combo multimodal defaults
-- Detect combo models via `owned_by: "combo"` (fallback: no provider prefix)
-- Force multimodal defaults on combos with no resolved capability info: text/image/audio input, tool calling, reasoning, 256K context, 128K output
-- Add `low`/`medium`/`high`/`xhigh`/`max`/`minimal`/`thinking` variants, plus `search: false`, `context_length`, and `max_completion_tokens`
-- Version discovery cache so older entries are refetched
-
-### v0.7.1 — Discovery logging
-- Add INFO-level logging for cache hit/miss, fetch status, timeout, and stale fallback
-
-### v0.7.0 — Caching & timeout
-- **Model discovery cache** — 3-hour TTL with stale fallback when backend is unreachable
-- **Configurable timeout** — 30s default, adjustable via `discoveryTimeout` option
-- **Provider options** — `cache`, `cacheTTL`, `discoveryTimeout`
-- New constant: `DISCOVERY_CACHE_TTL`, `DISCOVERY_TIMEOUT`
-
-### v0.6.0 — Multi-provider & fallback
-- Support multiple 9Router-family providers (`9router`, `9router-local`, etc.)
-- Fallback models catalog via `models.dev` API
-- Per-model capability resolution (vision, tools, reasoning)
-
-### v0.5.x — Initial releases
-- Basic auto-discovery from `localhost:20128`
-- Fallback models when API unreachable
-- Single provider support
-
 ## Development
 
 ```bash
@@ -504,16 +464,8 @@ opencode-9router/
   package.json        # npm package config
   tsconfig.json       # TypeScript config
   README.md           # This file
-  README.id.md        # Bahasa Indonesia version
   LICENSE             # MIT
 ```
-
-## Related Projects
-
-- [local-memory-mcp](https://github.com/vheins/local-memory-mcp) — A lightweight MCP server that gives AI agents persistent memory with semantic search, backed by SQLite. Local-first, with domain-based context isolation and no external database. Available on [npm](https://www.npmjs.com/package/@vheins/local-memory-mcp).
-
-- [RustaSea framework](https://github.com/rustasea/framework) — An expressive, Laravel-inspired web framework for Rust, with Rust-native safety, performance, and concurrency.
-- [RustaSea skeleton](https://github.com/rustasea/rustasea) — The RustaSea application skeleton (Blade variant), scaffolded with `cargo rustasea new`.
 
 ## Links
 

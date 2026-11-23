@@ -18,12 +18,12 @@ assert.equal(typeof localEntry.default.setup, "function");
 assert.equal(typeof localEntry.default.server, "function");
 assert.equal(typeof localEntry.NineRouterPlugin, "function");
 
-const packageEntry = await import("@vheins/opencode-9router/server");
+const packageEntry = await import("@joaogsbarbosa/opencode-9router/server");
 assert.equal(packageEntry.default.id, "9router");
 assert.equal(typeof packageEntry.default.setup, "function");
 assert.equal(typeof packageEntry.default.server, "function");
 
-assert.equal(require.resolve("@vheins/opencode-9router/server"), fileURLToPath(new URL("./dist/index.js", import.meta.url)));
+assert.equal(require.resolve("@joaogsbarbosa/opencode-9router/server"), fileURLToPath(new URL("./dist/index.js", import.meta.url)));
 
 console.log("V2 entrypoint and package export checks passed");
 
