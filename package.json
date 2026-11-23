@@ -1,6 +1,6 @@
 {
-  "name": "@vheins/opencode-9router",
-  "version": "0.9.1",
+  "name": "@joaogsbarbosa/opencode-9router",
+  "version": "0.0.1",
   "description": "OpenCode plugin provider for 9Router — FREE AI Router & Token Saver. 40+ providers, 100+ models.",
   "author": "vheins",
   "keywords": [
@@ -15,7 +15,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vheins/opencode-9router.git"
+    "url": "git+https://github.com/joaogsbarbosa/opencode-9router.git"
   },
   "license": "MIT",
   "type": "module",

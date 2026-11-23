@@ -1,4 +1,4 @@
-# @vheins/opencode-9router
+# @joaogsbarbosa/opencode-9router
 
 OpenCode plugin provider for [9Router](https://github.com/decolua/9router) — FREE AI Router & Token Saver. 40+ providers, 100+ models.
 
@@ -13,7 +13,7 @@ Registers 9Router as a custom provider in OpenCode with auto-discovery of models
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@vheins/opencode-9router@latest"]
+  "plugin": ["@joaogsbarbosa/opencode-9router@latest"]
 }
 ```
 
@@ -26,7 +26,7 @@ Registers 9Router as a custom provider in OpenCode with auto-discovery of models
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": ["@vheins/opencode-9router@latest"]
+  "plugins": ["@joaogsbarbosa/opencode-9router@latest"]
 }
 ```
 
@@ -37,7 +37,7 @@ Or with plugin options (object form):
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
     {
-      "package": "@vheins/opencode-9router@latest",
+      "package": "@joaogsbarbosa/opencode-9router@latest",
       "options": {
         "baseURL": "http://localhost:20128",
         "apiKey": "{env:ROUTER_API_KEY}",
@@ -79,7 +79,7 @@ OpenCode V2 replaces the V1 `plugin` config key with `plugins` and the single-fu
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": ["@vheins/opencode-9router@latest"]
+  "plugins": ["@joaogsbarbosa/opencode-9router@latest"]
 }
 ```
 
@@ -100,7 +100,7 @@ Plugin options use the object form (`{ "package": ..., "options": { ... } }`) an
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
     {
-      "package": "@vheins/opencode-9router@latest",
+      "package": "@joaogsbarbosa/opencode-9router@latest",
       "options": {
         "baseURL": "http://localhost:20128",
         "apiKey": "{env:ROUTER_API_KEY}",
@@ -120,7 +120,7 @@ In V2, providers are declared under the `providers` key. Each 9router-family pro
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": ["@vheins/opencode-9router@latest"],
+  "plugins": ["@joaogsbarbosa/opencode-9router@latest"],
   "providers": {
     "9router": {
       "name": "9Router",
@@ -166,11 +166,71 @@ V2 reads `id`/`setup`; V1 (1.18.29+) reads `server`. The named `NineRouterPlugin
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@vheins/opencode-9router@latest"]
+  "plugins": ["@joaogsbarbosa/opencode-9router@latest"]
 }
 ```
 
-No need to define a provider manually — the plugin registers it automatically.
+No need to define a provider manually — the plugin registers it automatically. On
+OpenCode V1, use the legacy `plugin` key as shown in the Quick Start above.
+
+### Automated install (Node script)
+
+A zero-dependency Node installer writes the `plugins` entry for you. It verifies
+the endpoint and edits only the `plugins` array, preserving the rest of the file
+(including comments and line endings). It targets the V2 `plugins` key; on
+OpenCode V1, add the package to the legacy `plugin` key manually (see Quick
+Start).
+
+**Run directly:**
+
+```bash
+node install.mjs
+```
+
+**One-liner** (downloads `install.mjs` to the current directory and runs it):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/joaogsbarbosa/opencode-9router/main/install.mjs -o install.mjs && node install.mjs
+```
+
+```powershell
+irm https://raw.githubusercontent.com/joaogsbarbosa/opencode-9router/main/install.mjs -OutFile install.mjs; node install.mjs
+```
+
+Run without arguments for an interactive menu, or pass a command: `install`,
+`update`, `configure`, `uninstall`, `list`, `path`, `help` (also `--help`/`-h`).
+
+**Flags:** `--project` edits the project config instead of the global config. It
+uses `./opencode.jsonc` by default, or an existing `./opencode.json` or
+`.opencode/opencode.json(c)`.
+
+**Prompts:** base URL (default `http://localhost:20128`), API key (optional),
+cache (default `Y`). `update` and `configure` reuse the current values as
+defaults. The connection (`{baseURL}/v1/models`) is verified before installing,
+updating, or configuring.
+
+**Commands:**
+
+- `install` replaces any existing `opencode-9router` entry with the npm package.
+- `update` re-applies the entry, dropping options that are not prompted again.
+- `configure` merges the prompted options into the existing entry, keeping other
+  options such as `cacheTTL` and `discoveryTimeout`.
+- `uninstall` removes matching entries and the plugin cache.
+- `list` shows configured plugins; `path` prints the config file in use.
+
+**What it writes:**
+
+```json
+{
+  "package": "@joaogsbarbosa/opencode-9router@latest",
+  "options": { "baseURL": "...", "apiKey": "...", "cache": true }
+}
+```
+
+`apiKey` is omitted when left empty. OpenCode installs the package and its
+dependencies automatically. `uninstall` removes the config entry and the plugin
+cache (`~/.cache/opencode-9router`, or `$XDG_CACHE_HOME/opencode-9router`).
+Requires Node 18+.
 
 ### Multiple Providers
 
@@ -179,7 +239,7 @@ Add one or more 9Router-family providers with custom options:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@vheins/opencode-9router@latest"],
+  "plugin": ["@joaogsbarbosa/opencode-9router@latest"],
   "provider": {
     "9router": {
       "npm": "@ai-sdk/openai-compatible",
@@ -321,7 +381,7 @@ opencode
 ## How It Works
 
 ```
-opencode.json "plugin": ["@vheins/opencode-9router@latest"]
+opencode.json "plugin": ["@joaogsbarbosa/opencode-9router@latest"]
   ↓
 Plugin loads at startup detects 9Router-family providers in config
   ↓
@@ -391,7 +451,7 @@ Cache files are stored at `~/.cache/opencode-9router/discovery-{base64url}.json`
 ## Development
 
 ```bash
-git clone https://github.com/vheins/opencode-9router
+git clone https://github.com/joaogsbarbosa/opencode-9router
 cd opencode-9router
 npm install
 npm run build
@@ -440,6 +500,7 @@ opencode-9router/
     utils.ts          # Shared helpers
     constants.ts      # Models, defaults, prefixes
   dist/               # Compiled output (generated)
+  install.mjs         # Zero-dependency installer (Node)
   package.json        # npm package config
   tsconfig.json       # TypeScript config
   README.md           # This file
@@ -456,6 +517,7 @@ opencode-9router/
 
 ## Links
 
+- [npm package](https://www.npmjs.com/package/@joaogsbarbosa/opencode-9router)
 - [OpenCode Plugin Docs](https://opencode.ai/docs/plugins/)
 - [OpenCode Custom Provider](https://opencode.ai/docs/providers/#custom-provider)
 - [9Router GitHub](https://github.com/decolua/9router)

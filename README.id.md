@@ -165,6 +165,44 @@ V2 membaca `id`/`setup`; V1 (1.18.29+) membaca `server`. Named export `NineRoute
 
 Tidak perlu mendefinisikan provider secara manual — plugin mendaftarkannya secara otomatis.
 
+### Instalasi otomatis (skrip Node)
+
+Installer Node tanpa dependensi menulis entry `plugins` untuk Anda. Skrip
+memverifikasi endpoint dan hanya mengedit array `plugins`, sehingga sisa berkas
+(termasuk komentar) tetap utuh.
+
+**Jalankan langsung:**
+
+```bash
+node install.mjs
+```
+
+**One-liner** (mengunduh `install.mjs` ke direktori saat ini lalu menjalankannya):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/joaogsbarbosa/opencode-9router/main/install.mjs -o install.mjs && node install.mjs
+```
+
+Jalankan tanpa argumen untuk menu interaktif, atau berikan perintah: `install`,
+`update`, `configure`, `uninstall`, `list`, `path`, `help`.
+
+**Flag:** `--project` mengedit `./opencode.jsonc` alih-alih config global.
+
+**Prompt:** URL base (default `http://localhost:20128`), API key (opsional),
+cache (default `Y`). Koneksi diverifikasi sebelum install atau configure.
+
+**Yang ditulis:**
+
+```json
+{
+  "package": "@joaogsbarbosa/opencode-9router@latest",
+  "options": { "baseURL": "...", "apiKey": "...", "cache": true }
+}
+```
+
+OpenCode memasang paket dan dependensinya secara otomatis. `uninstall` menghapus
+entry config dan cache plugin (`~/.cache/opencode-9router`). Membutuhkan Node 18+.
+
 ### Multi Provider
 
 Tambahkan satu atau lebih provider 9Router dengan opsi kustom:
@@ -432,6 +470,7 @@ opencode-9router/
     utils.ts          # Helper bersama
     constants.ts      # Model, default, prefix
   dist/               # Hasil kompilasi (dihasilkan)
+  install.mjs         # Installer tanpa dependensi (Node)
   package.json        # Konfigurasi paket npm
   tsconfig.json       # Konfigurasi TypeScript
   README.md           # Versi Bahasa Inggris
