@@ -172,6 +172,36 @@ V2 reads `id`/`setup`; V1 (1.18.29+) reads `server`. The named `NineRouterPlugin
 
 No need to define a provider manually — the plugin registers it automatically.
 
+### CLI (npx)
+
+The package ships a small `opencode-9router` CLI that installs, configures, and
+removes the plugin without editing JSON by hand:
+
+```bash
+# Install into the global config (default)
+npx github:joaogsbarbosa/opencode-9router install
+
+# Install with options
+npx github:joaogsbarbosa/opencode-9router install \
+  --set cache=true --set baseURL=http://localhost:20128
+
+# Change options later
+npx github:joaogsbarbosa/opencode-9router configure --set cache=false
+
+# Remove
+npx github:joaogsbarbosa/opencode-9router uninstall
+
+# Inspect
+npx github:joaogsbarbosa/opencode-9router list
+npx github:joaogsbarbosa/opencode-9router path
+```
+
+- Edits the global config (`~/.config/opencode/opencode.jsonc`) by default; pass `--project` to edit `./opencode.jsonc`.
+- `--set key=value` parses the value as JSON when possible (`true`, `1000`, `{"a":1}`), otherwise as a string.
+- `install` is idempotent: it replaces any existing `opencode-9router` entry so the plugin id is not duplicated.
+- JSONC comments are **not** preserved — the file is re-serialized.
+- Use `--package <spec>` to target a different package (npm name, version, or git spec).
+
 ### Multiple Providers
 
 Add one or more 9Router-family providers with custom options:
@@ -440,6 +470,8 @@ opencode-9router/
     utils.ts          # Shared helpers
     constants.ts      # Models, defaults, prefixes
   dist/               # Compiled output (generated)
+  bin/
+    opencode-9router.js  # npx CLI: install/configure/uninstall
   package.json        # npm package config
   tsconfig.json       # TypeScript config
   README.md           # This file

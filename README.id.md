@@ -165,6 +165,36 @@ V2 membaca `id`/`setup`; V1 (1.18.29+) membaca `server`. Named export `NineRoute
 
 Tidak perlu mendefinisikan provider secara manual — plugin mendaftarkannya secara otomatis.
 
+### CLI (npx)
+
+Paket ini menyertakan CLI kecil `opencode-9router` untuk memasang, mengonfigurasi,
+dan menghapus plugin tanpa mengedit JSON secara manual:
+
+```bash
+# Pasang ke config global (default)
+npx github:joaogsbarbosa/opencode-9router install
+
+# Pasang dengan opsi
+npx github:joaogsbarbosa/opencode-9router install \
+  --set cache=true --set baseURL=http://localhost:20128
+
+# Ubah opsi nanti
+npx github:joaogsbarbosa/opencode-9router configure --set cache=false
+
+# Hapus
+npx github:joaogsbarbosa/opencode-9router uninstall
+
+# Periksa
+npx github:joaogsbarbosa/opencode-9router list
+npx github:joaogsbarbosa/opencode-9router path
+```
+
+- Mengedit config global (`~/.config/opencode/opencode.jsonc`) secara default; gunakan `--project` untuk mengedit `./opencode.jsonc`.
+- `--set key=value` mem-parsing nilai sebagai JSON bila memungkinkan (`true`, `1000`, `{"a":1}`), selain itu sebagai string.
+- `install` idempoten: mengganti entri `opencode-9router` yang ada agar id plugin tidak ganda.
+- Komentar JSONC **tidak** dipertahankan — berkas ditulis ulang.
+- Gunakan `--package <spec>` untuk menargetkan paket lain (nama npm, versi, atau spec git).
+
 ### Multi Provider
 
 Tambahkan satu atau lebih provider 9Router dengan opsi kustom:
@@ -432,6 +462,8 @@ opencode-9router/
     utils.ts          # Helper bersama
     constants.ts      # Model, default, prefix
   dist/               # Hasil kompilasi (dihasilkan)
+  bin/
+    opencode-9router.js  # CLI npx: install/configure/uninstall
   package.json        # Konfigurasi paket npm
   tsconfig.json       # Konfigurasi TypeScript
   README.md           # Versi Bahasa Inggris
