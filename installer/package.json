@@ -1,0 +1,31 @@
+{
+  "name": "@joaogsbarbosa/opencode-9router-installer",
+  "version": "1.0.0",
+  "description": "Interactive installer for the OpenCode 9Router plugin.",
+  "type": "module",
+  "bin": {
+    "opencode-9router": "./install.mjs"
+  },
+  "files": [
+    "install.mjs",
+    "README.md"
+  ],
+  "dependencies": {
+    "jsonc-parser": "^3.3.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joaogsbarbosa/opencode-9router.git",
+    "directory": "installer"
+  },
+  "keywords": [
+    "opencode",
+    "9router",
+    "installer",
+    "cli"
+  ]
+}

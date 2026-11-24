@@ -8,6 +8,9 @@ Registers 9Router as a custom provider in OpenCode with auto-discovery of models
 
 ## Quick Start
 
+> **Automated:** run `npx @joaogsbarbosa/opencode-9router-installer` for the
+> interactive installer, or add the plugin manually below.
+
 ### OpenCode V1
 
 ```json
@@ -173,32 +176,22 @@ V2 reads `id`/`setup`; V1 (1.18.29+) reads `server`. The named `NineRouterPlugin
 No need to define a provider manually — the plugin registers it automatically. On
 OpenCode V1, use the legacy `plugin` key as shown in the Quick Start above.
 
-### Automated install (Node script)
+### Automated install (npx)
 
-A zero-dependency Node installer writes the `plugins` entry for you. It verifies
-the endpoint and edits only the `plugins` array, preserving the rest of the file
-(including comments and line endings). It targets the V2 `plugins` key; on
-OpenCode V1, add the package to the legacy `plugin` key manually (see Quick
-Start).
+A separate installer package ships the interactive setup. It uses
+`jsonc-parser` to edit the `plugins` array and the matching `providers` entry,
+preserving comments and formatting elsewhere in the file. It targets the V2
+`plugins` key; on OpenCode V1, add the package to the legacy `plugin` key
+manually (see Quick Start).
 
-**Run directly:**
-
-```bash
-node install.mjs
-```
-
-**One-liner** (downloads `install.mjs` to the current directory and runs it):
+**Run with npx:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/joaogsbarbosa/opencode-9router/main/install.mjs -o install.mjs && node install.mjs
+npx @joaogsbarbosa/opencode-9router-installer
 ```
 
-```powershell
-irm https://raw.githubusercontent.com/joaogsbarbosa/opencode-9router/main/install.mjs -OutFile install.mjs; node install.mjs
-```
-
-Run without arguments for an interactive menu, or pass a command: `install`,
-`update`, `configure`, `uninstall`, `list`, `path`, `help` (also `--help`/`-h`).
+The interactive menu shows the current installation status (including the
+effective base URL, API key, cache and timeouts) before asking what to do.
 
 **Flags:** `--project` edits the project config instead of the global config. It
 uses `./opencode.jsonc` by default, or an existing `./opencode.json` or
@@ -206,17 +199,18 @@ uses `./opencode.jsonc` by default, or an existing `./opencode.json` or
 
 **Prompts:** base URL (default `http://localhost:20128`), API key (optional),
 cache (default `Y`), cache TTL in ms (default `10800000`, 3 h), discovery
-timeout in ms (default `30000`). `update` and `configure` reuse the current
-values as defaults. The connection (`{baseURL}/v1/models`) is verified before
-installing, updating, or configuring.
+timeout in ms (default `30000`). The install/configure option reads the current
+values from the plugin options, or from a `providers` entry whose ID starts with
+`9router` (its `settings.baseURL`/`settings.apiKey`) when one exists. The values
+are pre-filled at the cursor, so pressing Enter keeps them. The connection
+(`{baseURL}/v1/models`) is verified before saving.
 
-**Commands:**
+**Menu:**
 
-- `install` replaces any existing `opencode-9router` entry with the npm package.
-- `update` re-applies the entry with the prompted options.
-- `configure` merges the prompted options into the existing entry.
-- `uninstall` removes matching entries and the plugin cache.
-- `list` shows configured plugins; `path` prints the config file in use.
+- Option 1 — `install` when not installed, `configure` when already installed.
+  Installs the plugin or changes the current configuration.
+- Option 2 — `uninstall` removes the plugin entry and cache.
+- Option 0 — `quit` exits.
 
 **What it writes:**
 
@@ -233,10 +227,15 @@ installing, updating, or configuring.
 }
 ```
 
-`apiKey` is omitted when left empty. OpenCode installs the package and its
-dependencies automatically. `uninstall` removes the config entry and the plugin
-cache (`~/.cache/opencode-9router`, or `$XDG_CACHE_HOME/opencode-9router`).
-Requires Node 18+.
+`apiKey` is omitted when left empty. If the plugin options contain a
+`providers` array, the matching entry is updated in place. If the config already
+has a `providers` entry for `9router` (or another ID starting with `9router`), the
+installer also updates that entry's `settings.baseURL` and `settings.apiKey`,
+since V2 prefers the provider settings over the plugin options. OpenCode installs
+the package and its dependencies automatically. The uninstall option removes the
+config entry and the plugin cache (`~/.cache/opencode-9router`, or
+`$XDG_CACHE_HOME/opencode-9router`); a `providers` entry for `9router` is left
+untouched. Requires Node 18+.
 
 ### Multiple Providers
 
@@ -414,7 +413,9 @@ Cache files are stored at `~/.cache/opencode-9router/discovery-{base64url}.json`
 git clone https://github.com/joaogsbarbosa/opencode-9router
 cd opencode-9router
 npm install
+npm install --prefix installer
 npm run build
+node installer/install.mjs   # run the installer locally
 ```
 
 ### Test
@@ -436,11 +437,21 @@ This runs model discovery against the published package with full debug logging 
 
 ### Publish
 
+Plugin:
+
 ```bash
 npm login
 npm version patch  # or minor, major
 npm publish --access public
 git push --follow-tags
+```
+
+Installer (separate package):
+
+```bash
+cd installer
+npm version patch  # or minor, major
+npm publish --access public
 ```
 
 ## Files
@@ -460,7 +471,10 @@ opencode-9router/
     utils.ts          # Shared helpers
     constants.ts      # Models, defaults, prefixes
   dist/               # Compiled output (generated)
-  install.mjs         # Zero-dependency installer (Node)
+  installer/
+    install.mjs       # Interactive installer (separate npx package)
+    package.json      # Installer package config
+    README.md         # Installer usage
   package.json        # npm package config
   tsconfig.json       # TypeScript config
   README.md           # This file
