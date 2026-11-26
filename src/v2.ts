@@ -1,5 +1,7 @@
-import { Plugin, Provider } from "@opencode/plugin";
+import { Plugin, Provider, Skill } from "@opencode/plugin";
 import type { PluginOptions } from "@opencode/plugin";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   DEFAULT_BASE_URL,
   DISCOVERY_CACHE_TTL,
@@ -215,6 +217,36 @@ export const nineRouterV2: Plugin.Plugin = Plugin.define({
         console.log(line);
       }
     };
+
+    // ── Bundled skill (9router-image) ───────────────────────────
+    // Shipped inside the package, so it installs and updates together with
+    // the plugin whenever OpenCode installs/updates the dependency. The
+    // platform-specific SKILL.md is chosen at runtime.
+    try {
+      const variant = process.platform === "win32" ? "windows" : "linux";
+      const skillPath = fileURLToPath(
+        new URL(`../skills/9router-image/${variant}/SKILL.md`, import.meta.url),
+      );
+      const content = readFileSync(skillPath, "utf8");
+      const description =
+        "Generate images via 9Router /v1/images/generations using OpenAI / Gemini Imagen / DALL-E / FLUX / MiniMax / SDWebUI / ComfyUI / Codex models. Use when the user wants to create, generate, draw, or render an image, picture, or text-to-image (txt2img).";
+      await ctx.skill.transform((editor) => {
+        const id = Skill.ID.make("9router-image");
+        const definition = {
+          id,
+          name: Skill.Name.make("9router-image"),
+          description,
+          path: Skill.Info.fields.path.make(skillPath),
+          content,
+        };
+        // Force the bundled copy to win so updates ship with the package.
+        if (editor.get(id)) editor.update(id, (skill) => Object.assign(skill, definition));
+        else editor.add(definition);
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await log("warn", `[9router-provider] Failed to register 9router-image skill: ${message}`);
+    }
 
     const source: { providers: CapturedProvider[] } = { providers: [] };
     let disposed = false;

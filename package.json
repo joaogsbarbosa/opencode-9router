@@ -1,6 +1,6 @@
 {
   "name": "@joaogsbarbosa/opencode-9router",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "OpenCode plugin provider for 9Router — FREE AI Router & Token Saver. 40+ providers, 100+ models.",
   "author": "joaogsbarbosa",
   "keywords": [
@@ -33,6 +33,7 @@
   "types": "dist/index.d.ts",
   "files": [
     "dist",
+    "skills",
     "server.js",
     "README.md",
     "LICENSE"
